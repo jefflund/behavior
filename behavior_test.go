@@ -198,6 +198,30 @@ func TestForceFailure(t *testing.T) {
 		actual[i] = forcer.Execute()
 	}
 	if !reflect.DeepEqual(expected, actual) {
-		t.Error("ForceSuccess produce incorrect states", actual)
+		t.Error("ForceFailure produce incorrect states", actual)
+	}
+}
+
+func TestUntil(t *testing.T) {
+	until := Until(Recorded(Failure, Running, Failure, Success))
+	expected := []State{Running, Running, Running, Success}
+	actual := make([]State, len(expected))
+	for i := range expected {
+		actual[i] = until.Execute()
+	}
+	if !reflect.DeepEqual(expected, actual) {
+		t.Error("Until produce incorrect states", actual)
+	}
+}
+
+func TestWhile(t *testing.T) {
+	while := While(Recorded(Success, Running, Success, Failure))
+	expected := []State{Running, Running, Running, Failure}
+	actual := make([]State, len(expected))
+	for i := range expected {
+		actual[i] = while.Execute()
+	}
+	if !reflect.DeepEqual(expected, actual) {
+		t.Error("While produce incorrect states", actual)
 	}
 }

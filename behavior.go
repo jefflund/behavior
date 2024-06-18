@@ -189,3 +189,39 @@ func ForceFailure(b Behavior) Behavior {
 	}
 	return &decorator{b, force}
 }
+
+// Until wraps a Behavior so it runs repeatedly until Success.
+func Until(b Behavior) Behavior {
+	until := func(s State) State {
+		switch s {
+		case Success:
+			return Success
+		case Failure:
+			b.Reset()
+			fallthrough
+		case Running:
+			return Running
+		default:
+			return Unknown
+		}
+	}
+	return &decorator{b, until}
+}
+
+// While wraps a Behavior so it runs repeatedly until Failure.
+func While(b Behavior) Behavior {
+	while := func(s State) State {
+		switch s {
+		case Failure:
+			return Failure
+		case Success:
+			b.Reset()
+			fallthrough
+		case Running:
+			return Running
+		default:
+			return Unknown
+		}
+	}
+	return &decorator{b, while}
+}
