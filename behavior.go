@@ -159,3 +159,33 @@ func Repeat(b Behavior) Behavior {
 	}
 	return &decorator{b, repeat}
 }
+
+// ForceSuccess wraps a Behavior so Failure instead results in Success.
+func ForceSuccess(b Behavior) Behavior {
+	force := func(s State) State {
+		switch s {
+		case Success, Failure:
+			return Success
+		case Running:
+			return Running
+		default:
+			return Unknown
+		}
+	}
+	return &decorator{b, force}
+}
+
+// ForceFailure  wraps a Behavior so Success instead results in Failure.
+func ForceFailure(b Behavior) Behavior {
+	force := func(s State) State {
+		switch s {
+		case Success, Failure:
+			return Failure
+		case Running:
+			return Running
+		default:
+			return Unknown
+		}
+	}
+	return &decorator{b, force}
+}

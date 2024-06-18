@@ -177,3 +177,27 @@ func TestRepeat(t *testing.T) {
 		t.Error("Repeat failed to reset wrapped Behavior", wrapped.resets)
 	}
 }
+
+func TestForceSuccess(t *testing.T) {
+	forcer := ForceSuccess(Recorded(Failure, Running, Success))
+	expected := []State{Success, Running, Success}
+	actual := make([]State, len(expected))
+	for i := range expected {
+		actual[i] = forcer.Execute()
+	}
+	if !reflect.DeepEqual(expected, actual) {
+		t.Error("ForceSuccess produce incorrect states", actual)
+	}
+}
+
+func TestForceFailure(t *testing.T) {
+	forcer := ForceFailure(Recorded(Failure, Running, Success))
+	expected := []State{Failure, Running, Failure}
+	actual := make([]State, len(expected))
+	for i := range expected {
+		actual[i] = forcer.Execute()
+	}
+	if !reflect.DeepEqual(expected, actual) {
+		t.Error("ForceSuccess produce incorrect states", actual)
+	}
+}
