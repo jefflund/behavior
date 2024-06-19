@@ -41,6 +41,19 @@ func (b *testBehavior) Reset() {
 	b.resets++
 }
 
+func TestFunc(t *testing.T) {
+	called := false
+	b := Func(func() {
+		called = true
+	})
+	if actual := b.Execute(); actual != Success {
+		t.Error("Func produce incorrect state:", actual)
+	}
+	if !called {
+		t.Error("Func failed to call func")
+	}
+}
+
 func TestSequence_Success(t *testing.T) {
 	b := Sequence(
 		Recorded(Running, Success),

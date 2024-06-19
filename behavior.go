@@ -31,7 +31,7 @@ type Behavior interface {
 	Execute() State
 }
 
-// Action is a function which acts a Behavior.
+// Action is a function which acts as a Behavior.
 type Action func() State
 
 // Reset is a noop.
@@ -39,6 +39,18 @@ func (Action) Reset() {}
 
 // Execute calls the underlying function and returns the result.
 func (a Action) Execute() State { return a() }
+
+// Func is a function which acts as a Behavior which always suceeds.
+type Func func()
+
+// Reset is a noop/
+func (Func) Reset() {}
+
+// Execute calls the underlying function and returns Success.
+func (f Func) Execute() State {
+	f()
+	return Success
+}
 
 // Conditional is a bool function which acts as a Behavior.
 type Conditional func() bool
