@@ -4,6 +4,19 @@ package bt
 // State describes the outcome of running a Behavior.
 type State int
 
+func (s State) String() string {
+	switch s {
+	case Running:
+		return "Running"
+	case Success:
+		return "Success"
+	case Failure:
+		return "Failure"
+	default:
+		return "Unknown"
+	}
+}
+
 // State constants to be used by Behavior.
 const (
 	Unknown State = iota
@@ -55,12 +68,12 @@ func (c *composite) Reset() {
 	}
 }
 
-// sequence is a Behavior which is the logical conjunction of child Behavior.
+// sequence is a Behavior which is the conjunction of child Behavior.
 type sequence struct {
 	composite
 }
 
-// Sequence gets a Behavior with the logical conjunction of child Beheavior.
+// Sequence gets a Behavior with the conjunction of child Beheavior.
 func Sequence(bs ...Behavior) Behavior {
 	return &sequence{composite{nodes: bs}}
 }
@@ -83,12 +96,12 @@ func (s *sequence) Execute() State {
 	return Success
 }
 
-// selection is a Behavior which is the logical disjunction of child Behavior.
+// selection is a Behavior which is the disjunction of child Behavior.
 type selection struct {
 	composite
 }
 
-// Selection gets a Behavior with the logical disjunction of child Beheavior.
+// Selection gets a Behavior with the disjunction of child Beheavior.
 func Selection(bs ...Behavior) Behavior {
 	return &selection{composite{nodes: bs}}
 }
@@ -107,6 +120,90 @@ func (s *selection) Execute() State {
 		default:
 			return Unknown
 		}
+	}
+	return Failure
+}
+
+// pcomposite is the base of a Behavior that runs multiple parallel Behavior.
+type pcomposite struct {
+	nodes    []Behavior
+	complete map[int]bool
+}
+
+// Reset resets all child Behavior.
+func (c *pcomposite) Reset() {
+	c.complete = make(map[int]bool)
+	for _, n := range c.nodes {
+		n.Reset()
+	}
+}
+
+// psequence is a Behavior which is the conjunction of parallel child Behavior.
+type psequence struct {
+	pcomposite
+}
+
+// PSequence gets a Behavior with the conjunction of parallel child Beheavior.
+func PSequence(bs ...Behavior) Behavior {
+	return &psequence{pcomposite{nodes: bs, complete: make(map[int]bool)}}
+}
+
+// Execute runs each child behavior in parallel. It succceeds if all the child
+// Behavior succeed, but fails if any child fails.
+func (s *psequence) Execute() State {
+	running := false
+	for i, n := range s.nodes {
+		if s.complete[i] {
+			continue
+		}
+		switch n.Execute() {
+		case Success:
+			s.complete[i] = true
+		case Running:
+			running = true
+		case Failure:
+			return Failure
+		default:
+			return Unknown
+		}
+	}
+	if running {
+		return Running
+	}
+	return Success
+}
+
+// selection is a Behavior which is the disjunction of parallel child Behavior.
+type pselection struct {
+	pcomposite
+}
+
+// PSelection gets a Behavior with the disjunction of parallel child Beheavior.
+func PSelection(bs ...Behavior) Behavior {
+	return &pselection{pcomposite{nodes: bs, complete: make(map[int]bool)}}
+}
+
+// Execute runs each child behavior in parallel. It succceeds if any the child
+// Behavior succeed, but fails if all child Behavior fail.
+func (s *pselection) Execute() State {
+	running := false
+	for i, n := range s.nodes {
+		if s.complete[i] {
+			continue
+		}
+		switch n.Execute() {
+		case Failure:
+			s.complete[i] = true
+		case Running:
+			running = true
+		case Success:
+			return Success
+		default:
+			return Unknown
+		}
+	}
+	if running {
+		return Running
 	}
 	return Failure
 }
@@ -150,7 +247,7 @@ func Repeat(b Behavior) Behavior {
 		switch s {
 		case Success, Failure:
 			b.Reset()
-			fallthrough
+			return Running
 		case Running:
 			return Running
 		default:
@@ -198,7 +295,7 @@ func Until(b Behavior) Behavior {
 			return Success
 		case Failure:
 			b.Reset()
-			fallthrough
+			return Running
 		case Running:
 			return Running
 		default:
@@ -216,7 +313,7 @@ func While(b Behavior) Behavior {
 			return Failure
 		case Success:
 			b.Reset()
-			fallthrough
+			return Running
 		case Running:
 			return Running
 		default:

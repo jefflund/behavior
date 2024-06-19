@@ -6,6 +6,16 @@ import (
 	"testing"
 )
 
+func CheckBehavior(name string, t *testing.T, b Behavior, expected []State) {
+	actual := make([]State, len(expected))
+	for i := 0; i < len(expected); i++ {
+		actual[i] = b.Execute()
+	}
+	if !reflect.DeepEqual(expected, actual) {
+		t.Errorf("%s produced incorrect states: %v", name, actual)
+	}
+}
+
 func Recorded(states ...State) Behavior {
 	i := 0
 	return Action(func() State {
@@ -15,6 +25,22 @@ func Recorded(states ...State) Behavior {
 	})
 }
 
+type testBehavior struct {
+	base   Behavior
+	calls  int
+	resets int
+}
+
+func (b *testBehavior) Execute() State {
+	b.calls++
+	return b.base.Execute()
+}
+
+func (b *testBehavior) Reset() {
+	b.base.Reset()
+	b.resets++
+}
+
 func TestSequence_Success(t *testing.T) {
 	b := Sequence(
 		Recorded(Running, Success),
@@ -22,13 +48,7 @@ func TestSequence_Success(t *testing.T) {
 		Recorded(Success),
 	)
 	expected := []State{Running, Running, Success}
-	actual := make([]State, len(expected))
-	for i := range expected {
-		actual[i] = b.Execute()
-	}
-	if !reflect.DeepEqual(expected, actual) {
-		t.Error("Sequence produced incorrect states", actual)
-	}
+	CheckBehavior("Sequence (Success)", t, b, expected)
 }
 
 func TestSequence_Failure(t *testing.T) {
@@ -38,13 +58,7 @@ func TestSequence_Failure(t *testing.T) {
 		Recorded(Success),
 	)
 	expected := []State{Running, Running, Running, Failure}
-	actual := make([]State, len(expected))
-	for i := range expected {
-		actual[i] = b.Execute()
-	}
-	if !reflect.DeepEqual(expected, actual) {
-		t.Error("Sequence produced incorrect states", actual)
-	}
+	CheckBehavior("Sequence (Failure)", t, b, expected)
 }
 
 func TestSequence_Unknown(t *testing.T) {
@@ -54,13 +68,7 @@ func TestSequence_Unknown(t *testing.T) {
 		Recorded(Success),
 	)
 	expected := []State{Running, Running, Running, Unknown}
-	actual := make([]State, len(expected))
-	for i := range expected {
-		actual[i] = b.Execute()
-	}
-	if !reflect.DeepEqual(expected, actual) {
-		t.Error("Sequence produced incorrect states", actual)
-	}
+	CheckBehavior("Sequence (Unknown)", t, b, expected)
 }
 
 func TestSelection_Success(t *testing.T) {
@@ -72,13 +80,7 @@ func TestSelection_Success(t *testing.T) {
 		Recorded(Success),
 	)
 	expected := []State{Running, Running, Success}
-	actual := make([]State, len(expected))
-	for i := range expected {
-		actual[i] = b.Execute()
-	}
-	if !reflect.DeepEqual(expected, actual) {
-		t.Error("Selection produced incorrect states", actual)
-	}
+	CheckBehavior("Selection (Success)", t, b, expected)
 }
 
 func TestSelection_Failure(t *testing.T) {
@@ -91,13 +93,7 @@ func TestSelection_Failure(t *testing.T) {
 		Recorded(Running, Failure),
 	)
 	expected := []State{Running, Running, Running, Failure}
-	actual := make([]State, len(expected))
-	for i := range expected {
-		actual[i] = b.Execute()
-	}
-	if !reflect.DeepEqual(expected, actual) {
-		t.Error("Selection produced incorrect states", actual)
-	}
+	CheckBehavior("Selection (Failure)", t, b, expected)
 }
 
 func TestSelection_Unknown(t *testing.T) {
@@ -109,12 +105,90 @@ func TestSelection_Unknown(t *testing.T) {
 		Recorded(Success),
 	)
 	expected := []State{Running, Running, Unknown}
-	actual := make([]State, len(expected))
-	for i := range expected {
-		actual[i] = b.Execute()
+	CheckBehavior("Selection (Unknown)", t, b, expected)
+}
+
+func TestPSequence_Success(t *testing.T) {
+	child := &testBehavior{base: Recorded(Running, Running, Success)}
+	b := PSequence(
+		child,
+		Recorded(Running, Success),
+		Recorded(Success),
+	)
+	expected := []State{Running, Running, Success}
+	CheckBehavior("PSequence (Success)", t, b, expected)
+	if child.calls != 3 {
+		t.Error("PSequence (Success) failed to call child each Execute")
 	}
-	if !reflect.DeepEqual(expected, actual) {
-		t.Error("Selection produced incorrect states", actual)
+}
+
+func TestPSequence_Failure(t *testing.T) {
+	child := &testBehavior{base: Recorded(Running, Running, Success)}
+	b := PSequence(
+		child,
+		Recorded(Running, Failure),
+		Recorded(Success),
+	)
+	expected := []State{Running, Failure}
+	CheckBehavior("PSequence (Failure)", t, b, expected)
+	if child.calls != 2 {
+		t.Error("PSequence (Success) failed to call child each Execute")
+	}
+}
+
+func TestPSequence_Unknown(t *testing.T) {
+	child := &testBehavior{base: Recorded(Running, Running, Success)}
+	b := PSequence(
+		child,
+		Recorded(Running, Unknown),
+		Recorded(Success),
+	)
+	expected := []State{Running, Unknown}
+	CheckBehavior("PSequence (Unknown)", t, b, expected)
+	if child.calls != 2 {
+		t.Error("PSequence (Unknown) failed to call child each Execute")
+	}
+}
+
+func TestPSelection_Success(t *testing.T) {
+	child := &testBehavior{base: Recorded(Running, Running, Success)}
+	b := PSelection(
+		child,
+		Recorded(Running, Success),
+		Recorded(Running, Success),
+	)
+	expected := []State{Running, Success}
+	CheckBehavior("PSelection (Success)", t, b, expected)
+	if child.calls != 2 {
+		t.Error("PSequence (Success) failed to call child each Execute")
+	}
+}
+
+func TestPSelection_Failure(t *testing.T) {
+	child := &testBehavior{base: Recorded(Running, Running, Failure)}
+	b := PSelection(
+		child,
+		Recorded(Failure),
+		Recorded(Running, Failure),
+	)
+	expected := []State{Running, Running, Failure}
+	CheckBehavior("PSelection (Failure)", t, b, expected)
+	if child.calls != 3 {
+		t.Error("PSelection (Failure) failed to call child each Execute")
+	}
+}
+
+func TestPSelection_Unknown(t *testing.T) {
+	child := &testBehavior{base: Recorded(Running, Running, Success)}
+	b := PSelection(
+		child,
+		Recorded(Running, Unknown),
+		Recorded(Running, Success),
+	)
+	expected := []State{Running, Unknown}
+	CheckBehavior("PSelection (Unknown)", t, b, expected)
+	if child.calls != 2 {
+		t.Error("PSequence (Unknown) failed to call child each Execute")
 	}
 }
 
@@ -127,7 +201,7 @@ func TestConditional(t *testing.T) {
 		{false, Failure},
 	}
 	for _, c := range cases {
-		t.Run(fmt.Sprintf("Conditional_%t", c.output), func(t *testing.T) {
+		t.Run(fmt.Sprintf("Conditional (%t)", c.output), func(t *testing.T) {
 			b := Conditional(func() bool { return c.output })
 			if b.Execute() != c.expected {
 				t.Errorf("Conditional failed to turn %t into %v", c.output, c.expected)
@@ -139,27 +213,7 @@ func TestConditional(t *testing.T) {
 func TestInvert(t *testing.T) {
 	b := Invert(Recorded(Running, Failure, Success, Unknown))
 	expected := []State{Running, Success, Failure, Unknown}
-	actual := make([]State, len(expected))
-	for i := range expected {
-		actual[i] = b.Execute()
-	}
-	if !reflect.DeepEqual(expected, actual) {
-		t.Error("Selection produced incorrect states", actual)
-	}
-}
-
-type testBehavior struct {
-	base   Behavior
-	resets int
-}
-
-func (b *testBehavior) Execute() State {
-	return b.base.Execute()
-}
-
-func (b *testBehavior) Reset() {
-	b.base.Reset()
-	b.resets++
+	CheckBehavior("Invert", t, b, expected)
 }
 
 func TestRepeat(t *testing.T) {
@@ -179,49 +233,25 @@ func TestRepeat(t *testing.T) {
 }
 
 func TestForceSuccess(t *testing.T) {
-	forcer := ForceSuccess(Recorded(Failure, Running, Success))
+	b := ForceSuccess(Recorded(Failure, Running, Success))
 	expected := []State{Success, Running, Success}
-	actual := make([]State, len(expected))
-	for i := range expected {
-		actual[i] = forcer.Execute()
-	}
-	if !reflect.DeepEqual(expected, actual) {
-		t.Error("ForceSuccess produce incorrect states", actual)
-	}
+	CheckBehavior("ForceSuccess", t, b, expected)
 }
 
 func TestForceFailure(t *testing.T) {
-	forcer := ForceFailure(Recorded(Failure, Running, Success))
+	b := ForceFailure(Recorded(Failure, Running, Success))
 	expected := []State{Failure, Running, Failure}
-	actual := make([]State, len(expected))
-	for i := range expected {
-		actual[i] = forcer.Execute()
-	}
-	if !reflect.DeepEqual(expected, actual) {
-		t.Error("ForceFailure produce incorrect states", actual)
-	}
+	CheckBehavior("ForceFailure", t, b, expected)
 }
 
 func TestUntil(t *testing.T) {
-	until := Until(Recorded(Failure, Running, Failure, Success))
+	b := Until(Recorded(Failure, Running, Failure, Success))
 	expected := []State{Running, Running, Running, Success}
-	actual := make([]State, len(expected))
-	for i := range expected {
-		actual[i] = until.Execute()
-	}
-	if !reflect.DeepEqual(expected, actual) {
-		t.Error("Until produce incorrect states", actual)
-	}
+	CheckBehavior("Until", t, b, expected)
 }
 
 func TestWhile(t *testing.T) {
-	while := While(Recorded(Success, Running, Success, Failure))
+	b := While(Recorded(Success, Running, Success, Failure))
 	expected := []State{Running, Running, Running, Failure}
-	actual := make([]State, len(expected))
-	for i := range expected {
-		actual[i] = while.Execute()
-	}
-	if !reflect.DeepEqual(expected, actual) {
-		t.Error("While produce incorrect states", actual)
-	}
+	CheckBehavior("While", t, b, expected)
 }
